@@ -105,11 +105,13 @@ python -m ptz_tracking.main
 
 Keys: `q` quit · `space` pause · `r` re-pick target · `n` toggle detection noise
 
-A **"PTZ Controls" window** opens alongside the demo with live sliders for every
-key parameter — people count, speed, keep-out radius, ease-curve smoothness,
-engage/release range, box smoothing, jitter, pan limit, and more. Drag a slider
-and the change takes effect on the next frame (changing the people count rebuilds
-the scene). Launch with `--no-ui` to hide the panel.
+A **"PTZ Controls" window** opens alongside the demo with clearly-labelled live
+sliders — tracker selector, people count, walk speed, keep-out radius, camera
+ease time, max pan speed, aim lead, start/stop-follow error, re-acquire delay,
+box steadiness, detection jitter and miss rate. Each label states its unit, and
+a full plain-English legend is printed to the console when the panel opens. Drag
+a slider and the change takes effect on the next frame (changing the people
+count rebuilds the scene). Launch with `--no-ui` to hide the panel.
 
 Headless (no window — runs for a duration, writes an mp4, prints metrics):
 

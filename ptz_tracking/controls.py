@@ -1,12 +1,12 @@
 """On-screen control panel (OpenCV trackbars) for live parameter tuning.
 
-Creates a "PTZ Controls" window with sliders bound to the live `Params` object.
-Because every component holds a reference to the same `Params` instance, moving a
-slider takes effect on the next frame. Structural changes (people count) trigger
-a world rebuild.
+Opens a "PTZ Controls" window whose sliders are bound to the live `Params`
+object — every component holds the same `Params`, so moving a slider takes
+effect on the next frame. Structural changes (people count) rebuild the scene.
 
-Trackbars are integer-only, so each slider stores `value = param / scale`; on
-read we multiply back by `scale` and clamp to `[smin, smax]`.
+Trackbars are integer-only, so each slider stores ``value = param / scale`` and
+we multiply back on read. The label states the unit and any scale factor, and a
+full legend is printed to the console when the panel opens.
 """
 
 from __future__ import annotations
@@ -15,24 +15,45 @@ import cv2
 
 from .trackers import TRACKER_NAMES
 
-_TRACKER_LABEL = "tracker 0-4"
+_TRACKER_LABEL = "Tracker (0-4)"
 
 # (label, Params attribute, slider_min, slider_max, scale, structural)
+# Labels spell out the unit; `scale` keeps the on-screen integer intuitive.
 SPECS: list[tuple[str, str, int, int, float, bool]] = [
-    ("people",           "num_people",             1,  30, 1.0,  True),
-    ("speed x0.1",       "speed_scale",            0, 200, 0.1,  False),
-    ("exclude x0.1m",    "exclusion_radius",       0,  80, 0.1,  False),
-    ("world x0.5m",      "world_half",             4,  40, 0.5,  False),
-    ("smooth_t x0.01s",  "ctrl_smooth_time",       1, 150, 0.01, False),
-    ("max_spd deg/s",    "ctrl_max_speed_deg",    30, 600, 1.0,  False),
-    ("lead frames",      "ctrl_lead_frames",       0,  30, 1.0,  False),
-    ("engage x0.01",     "ctrl_engage_error",      1, 100, 0.01, False),
-    ("release x0.01",    "ctrl_release_error",     0, 100, 0.01, False),
-    ("box_smooth x0.01", "bbox_smoothing",         5, 100, 0.01, False),
-    ("jitter px",        "det_bbox_jitter_px",     0,  12, 1.0,  False),
-    ("pan_lim deg",      "pan_limit_deg",         10, 175, 1.0,  False),
-    ("lost_grace",       "ctrl_target_lost_grace", 0, 150, 1.0,  False),
+    # --- scene -------------------------------------------------------------
+    ("People in scene",         "num_people",             1,   30, 1.0,  True),
+    ("Walk speed (%)",          "speed_scale",            0, 1000, 0.01, False),
+    ("Keep-out radius (m)",     "exclusion_radius",       0,   15, 1.0,  False),
+    ("Scene half-size (m)",     "world_half",             4,   40, 1.0,  False),
+    # --- camera follow behaviour ------------------------------------------
+    ("Camera ease time (1/100 s)", "ctrl_smooth_time",    1,  100, 0.01, False),
+    ("Max pan speed (deg/s)",   "ctrl_max_speed_deg",    30,  600, 1.0,  False),
+    ("Aim lead (frames ahead)", "ctrl_lead_frames",       0,   30, 1.0,  False),
+    ("Start-follow error (%)",  "ctrl_engage_error",      1,  100, 0.01, False),
+    ("Stop-follow error (%)",   "ctrl_release_error",     0,  100, 0.01, False),
+    ("Re-acquire delay (frames)", "ctrl_target_lost_grace", 0, 150, 1.0, False),
+    # --- detection / tracking ---------------------------------------------
+    ("Box steadiness (1=raw)",  "bbox_smoothing",         5,  100, 0.01, False),
+    ("Detection jitter (px)",   "det_bbox_jitter_px",     0,   12, 1.0,  False),
+    ("Missed-detection (%)",    "det_drop_prob",          0,   50, 0.01, False),
 ]
+
+# One-line plain-English explanation per control (printed as a legend).
+_HELP: dict[str, str] = {
+    "num_people":            "how many people walk in the scene",
+    "speed_scale":           "walking speed; 100 = normal, 250 = 2.5x, 800 = very fast",
+    "exclusion_radius":      "no-walk circle around the camera (people can't get closer)",
+    "world_half":            "half-width of the square floor area",
+    "ctrl_smooth_time":      "camera easing; lower = snappier follow, higher = gentler (20 = 0.20s)",
+    "ctrl_max_speed_deg":    "ceiling on how fast the camera can pan/tilt",
+    "ctrl_lead_frames":      "aim this many frames AHEAD of the target (helps keep fast movers centered)",
+    "ctrl_engage_error":     "camera STARTS following once the target drifts this far off-center (15 = 15%)",
+    "ctrl_release_error":    "camera STOPS adjusting once the target is within this of center (4 = 4%)",
+    "ctrl_target_lost_grace":"frames to keep chasing a lost target before picking a new one",
+    "bbox_smoothing":        "box/trail smoothing; lower = steadier (less jitter), 100 = raw",
+    "det_bbox_jitter_px":    "simulated detector noise added to box edges",
+    "det_drop_prob":         "simulated chance a person is missed each frame (5 = 5%)",
+}
 
 
 class ControlPanel:
@@ -41,22 +62,33 @@ class ControlPanel:
     def __init__(self, demo) -> None:
         self.demo = demo
         cv2.namedWindow(self.WIN, cv2.WINDOW_NORMAL)
-        cv2.resizeWindow(self.WIN, 460, 600)
-        # Algorithm selector: 0=SORT, 1=ByteTrack, 2=DeepSORT, 3=OC-SORT, 4=BoT-SORT
+        cv2.resizeWindow(self.WIN, 540, 680)
+
+        # Tracking algorithm selector (0..4 -> TRACKER_NAMES).
         try:
             ti = TRACKER_NAMES.index(demo.p.tracker_name)
         except ValueError:
             ti = 0
         cv2.createTrackbar(_TRACKER_LABEL, self.WIN, ti, len(TRACKER_NAMES) - 1,
                            lambda _v: None)
+
         for label, attr, smin, smax, scale, _structural in SPECS:
             init = int(round(getattr(demo.p, attr) / scale))
             init = max(smin, min(smax, init))
-            # Some OpenCV builds need a callback; a no-op is fine (we poll).
             cv2.createTrackbar(label, self.WIN, init, smax, lambda _v: None)
             cv2.setTrackbarMin(label, self.WIN, smin)
+
         self._prev_people = demo.p.num_people
         self._prev_tracker_idx = ti
+        self._print_legend()
+
+    def _print_legend(self) -> None:
+        print("\n=== PTZ Controls (drag sliders in the 'PTZ Controls' window) ===")
+        names = "  ".join(f"{i}={n}" for i, n in enumerate(TRACKER_NAMES))
+        print(f"  {_TRACKER_LABEL:<28} tracking algorithm: {names}")
+        for label, attr, _smin, _smax, _scale, _s in SPECS:
+            print(f"  {label:<28} {_HELP.get(attr, '')}")
+        print("=" * 64 + "\n")
 
     def apply(self) -> None:
         """Read every slider and push values into the live Params (+ rebuild)."""
@@ -70,7 +102,7 @@ class ControlPanel:
         if p.num_people != self._prev_people:
             self.demo.rebuild_world()
             self._prev_people = p.num_people
-        # Tracker selector (string, handled specially — switching resets IDs).
+        # Tracker selector (switching resets IDs / target).
         ti = max(0, min(len(TRACKER_NAMES) - 1,
                         cv2.getTrackbarPos(_TRACKER_LABEL, self.WIN)))
         if ti != self._prev_tracker_idx:
