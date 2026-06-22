@@ -104,22 +104,25 @@ class Demo:
             self.lost_frames = 0
 
         target = _find_track(tracks, self.target_id)
-        # Only steer toward a target that was actually detected recently. A track
-        # that is merely coasting (the person walked out of view) extrapolates
-        # off-screen, so chasing it would fling the camera around — hold instead.
-        active = target is not None and target.time_since_update <= 2
         if self.target_id is None:
-            state, target_center = "SEARCHING", None
-        elif active:
-            self.lost_frames = 0
-            # Lead the target: aim ahead along its image-space velocity so a
-            # fast mover stays centered despite the camera's smooth lag.
+            state, target_center, active = "SEARCHING", None, False
+        elif target is not None:
+            # Keep following the target while its track is alive — even when it
+            # is briefly undetected (coasting). The Kalman filter extrapolates
+            # its position, so the camera keeps rotating after it and re-centers
+            # when it comes back into view. This is what lets the camera follow
+            # a target continuously around (360°+) instead of braking the moment
+            # the target slips out of frame.
+            active = True
+            self.lost_frames = 0 if target.time_since_update == 0 else self.lost_frames + 1
             cx, cy = target.center
             vx, vy = target.velocity
             lead = self.p.ctrl_lead_frames
             target_center = (cx + vx * lead, cy + vy * lead)
-            state = "TRACKING"
+            state = "TRACKING" if target.time_since_update == 0 else "COASTING"
         else:
+            # Track has died (gone for > max_age) — truly lost; idle, re-acquire.
+            active = False
             self.lost_frames += 1
             target_center = None
             state = "TARGET LOST"
@@ -127,7 +130,7 @@ class Demo:
                 self.target_id = None  # re-acquire next frame
 
         status = self.controller.update(self.camera, target_center)
-        if active:
+        if active and state != "COASTING":
             state = "CENTERED" if status.centered else ("TRACKING" if status.engaged else "IN RANGE")
 
         draw_overlay(frame, tracks, self.target_id, self.camera, status, state,

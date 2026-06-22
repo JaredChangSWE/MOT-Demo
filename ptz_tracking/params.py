@@ -73,7 +73,8 @@ class Params:
 
     # -- controller (ease-curve tracking + engage range) -------------------
     # SmoothDamp easing: larger smooth_time => gentler ease-in / ease-out.
-    ctrl_smooth_time: float = 0.35                 # seconds
+    ctrl_smooth_time: float = 0.20                 # seconds (snappy enough to follow
+                                                   # fast targets; still SmoothDamp-eased)
     ctrl_max_speed_deg: float = 180.0              # cap on pan/tilt speed (deg/s)
     # Hysteresis "tracking range": the camera only STARTS moving once the
     # normalized centering error exceeds `engage`, and keeps tracking until the

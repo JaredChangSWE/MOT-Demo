@@ -18,6 +18,9 @@ Everything runs on just **NumPy + OpenCV** — no GPU, no model download, no hea
    with a circular **keep-out zone** so people never walk onto the lens. Pan is
    **unlimited by default** — the camera rotates continuously (360°+) to follow
    a target all the way around (`--limit-pan` re-enables a mechanical stop).
+   While a target is briefly out of view the camera keeps rotating after its
+   Kalman-extrapolated position (HUD state `COASTING`) and re-centers when it
+   reappears, so a fast target circling the camera is followed continuously.
 3. **Object detection** — per-frame person detections with bounding box,
    confidence, and class (`detector.py`).
 4. **Multi-object tracking** — five selectable algorithms (`trackers/`), each
@@ -128,7 +131,7 @@ through every component. Highlights:
 | `--exclusion R` | keep-out radius around the camera, m (default 3.0) |
 | `--camera-x/y/z` | camera mount position; default `(0,0,2.6)` = scene center |
 | `--bbox-smoothing A` | EMA weight for box/trail; **lower = less jitter** (default 0.35) |
-| `--smooth-time S` | ease-curve time; **larger = gentler** start/stop (default 0.35) |
+| `--smooth-time S` | ease-curve time; **larger = gentler**, smaller = snappier (default 0.20) |
 | `--max-speed D` | cap on pan/tilt speed, deg/s |
 | `--lead F` | aim F frames ahead along the target's velocity (keeps fast targets centered; default 6) |
 | `--limit-pan` | re-enable the mechanical pan limit (default: unlimited 360°) |
