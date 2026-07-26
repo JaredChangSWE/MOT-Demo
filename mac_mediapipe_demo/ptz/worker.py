@@ -10,7 +10,7 @@ import threading
 import time
 
 from applog import get_logger
-from ptz import PTZController
+from ptz.controller import PTZController
 
 _log = get_logger("ptz_worker")
 

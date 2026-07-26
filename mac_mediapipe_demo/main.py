@@ -23,19 +23,17 @@ import cv2
 import numpy as np
 
 from applog import get_logger, setup_logging
+from camera import DiscoveredCamera, LatestFrameReader, PTZCommandWorker, PTZController, discover_onvif_cameras
 from config import SETTINGS
-from controls_rt import PANEL_W, VIEW_H, VIEW_W, ControlPanel
-from discovery import DiscoveredCamera, discover_onvif_cameras
-import hud
 from params import Params
-from ptz import PTZController
-from ptz_worker import PTZCommandWorker
-from stream import LatestFrameReader
+from tracking import Profiler, SharedState, TrackingWorker
+from ui import PANEL_W, VIEW_H, VIEW_W, ControlPanel
+import ui.hud as hud
 
 # Reuse the pluggable trackers from the sibling sim package.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from ptz_tracking.trackers import TRACKER_NAMES  # noqa: E402
-from worker import Profiler, SharedState, TrackingWorker  # noqa: E402
+
 
 def _view(frame, label: str):
     """One camera lens scaled to the fixed view size, captioned."""

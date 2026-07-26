@@ -6,19 +6,23 @@ Runs a real hardware sequence on the physical PTZ camera:
 3. Rapid command sequence (+0.1, +0.2, +0.3 -> -0.4) -> Demonstrates preemption.
 
 Run:
-    python run_ptz_hardware_test.py
+    python scripts/run_ptz_hardware_test.py
 """
 
 from __future__ import annotations
 
 import sys
 import time
+from pathlib import Path
+
+# Insert parent directory to Python path if executed directly
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from applog import setup_logging
+from camera.discovery import discover_onvif_cameras
+from camera.ptz import PTZController
+from camera.ptz_worker import PTZCommandWorker
 from config import SETTINGS
-from discovery import discover_onvif_cameras
-from ptz import PTZController
-from ptz_worker import PTZCommandWorker
 
 
 def main() -> None:

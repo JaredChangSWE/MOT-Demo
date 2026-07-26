@@ -150,7 +150,7 @@ def _build_probe() -> bytes:
         '<w:To e:mustUnderstand="true">'
         "urn:schemas-xmlsoap-org:ws:2005:04:discovery</w:To>"
         '<w:Action e:mustUnderstand="true">'
-        "http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe</w:Action>"
+        "http://schemas.xmlsoap.org/ws:2005/04/discovery/Probe</w:Action>"
         "</e:Header>"
         "<e:Body>"
         "<d:Probe><d:Types>dn:NetworkVideoTransmitter</d:Types></d:Probe>"

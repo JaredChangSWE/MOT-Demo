@@ -21,14 +21,14 @@ import mediapipe as mp
 from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision
 
-from detection import Detection
+from detectors.base import Detection
 from params import Params
 
 _MODEL_URL = (
     "https://storage.googleapis.com/mediapipe-models/pose_landmarker/"
     "pose_landmarker_lite/float16/latest/pose_landmarker_lite.task"
 )
-_MODEL_PATH = Path(__file__).with_name("pose_landmarker_lite.task")
+_MODEL_PATH = Path(__file__).resolve().parents[1] / "pose_landmarker_lite.task"
 
 
 def _ensure_model() -> Path:

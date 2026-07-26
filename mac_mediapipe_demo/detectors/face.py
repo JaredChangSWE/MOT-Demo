@@ -23,14 +23,14 @@ import mediapipe as mp
 from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision
 
-from detection import Detection
+from detectors.base import Detection
 from params import Params
 
 _MODEL_URL = (
     "https://storage.googleapis.com/mediapipe-models/face_detector/"
     "blaze_face_short_range/float16/latest/blaze_face_short_range.tflite"
 )
-_MODEL_PATH = Path(__file__).with_name("blaze_face_short_range.tflite")
+_MODEL_PATH = Path(__file__).resolve().parents[1] / "blaze_face_short_range.tflite"
 
 
 def _ensure_model() -> Path:

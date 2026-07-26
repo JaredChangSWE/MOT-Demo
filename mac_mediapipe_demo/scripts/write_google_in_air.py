@@ -3,19 +3,23 @@
 Traces out the letters G-o-o-g-l-e in mid-air using smooth continuous PTZ velocity control.
 
 Run:
-    python write_google_in_air.py
+    python scripts/write_google_in_air.py
 """
 
 from __future__ import annotations
 
 import sys
 import time
+from pathlib import Path
+
+# Insert parent directory to Python path if executed directly
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from applog import setup_logging
+from camera.discovery import discover_onvif_cameras
+from camera.ptz import PTZController
+from camera.ptz_worker import PTZCommandWorker
 from config import SETTINGS
-from discovery import discover_onvif_cameras
-from ptz import PTZController
-from ptz_worker import PTZCommandWorker
 
 
 def draw_letter(worker: PTZCommandWorker, letter_name: str, strokes: list[tuple[float, float, float]]) -> None:

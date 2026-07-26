@@ -8,11 +8,16 @@ Tests:
 
 from __future__ import annotations
 
+import sys
 import time
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock
 
-from ptz_worker import PTZCommandWorker
+# Insert parent directory to Python path if executed directly
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from camera.ptz_worker import PTZCommandWorker
 
 
 class TestPTZCommandPreemption(unittest.TestCase):

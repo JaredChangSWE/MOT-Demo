@@ -18,14 +18,12 @@ import traceback
 from collections import deque
 
 from applog import get_logger
-from detector import make_detector
+from camera.ptz_worker import PTZCommandWorker
+from detectors import make_detector
 from params import Params
-from ptz import PTZController
-from rt_controller import ControlStatus, RTController
-from target_select import TargetSelector
-
-# Reuse the pluggable trackers from the sibling sim package (path set in main).
 from ptz_tracking.trackers import make_tracker
+from tracking.rt_controller import ControlStatus, RTController
+from tracking.target_select import TargetSelector
 
 _log = get_logger("worker")
 
