@@ -1,0 +1,5 @@
+# macOS MediaPipe auto-tracking demo
+# Python 3.13 works (mediapipe >= 0.10.35 ships 3.13 wheels).
+mediapipe>=0.10.35
+opencv-python>=4.8
+onvif-zeep>=0.2.12
