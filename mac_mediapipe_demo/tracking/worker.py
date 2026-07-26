@@ -15,13 +15,19 @@ import math
 import threading
 import time
 import traceback
+import sys
 from collections import deque
+from pathlib import Path
 
 from applog import get_logger
 from camera.ptz_worker import PTZCommandWorker
 from detectors import make_detector
 from params import Params
+
+# Ensure sibling ptz_tracking package is on Python path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from ptz_tracking.trackers import make_tracker
+
 from tracking.rt_controller import ControlStatus, RTController
 from tracking.target_select import TargetSelector
 
