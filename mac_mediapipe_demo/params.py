@@ -70,6 +70,15 @@ class Params:
     kp_tilt: float = 0.4             # velocity per unit of error-beyond-stop-box
     ctrl_smooth_time: float = 0.30   # velocity easing time (s); higher = smoother
     ctrl_max_speed: float = 0.4      # cap on |ONVIF velocity| in [0, 1]
+    # HARDWARE REALITY: this camera's ContinuousMove velocity is QUANTIZED, not
+    # proportional -- measured: cmds 0.05..0.30 all move at the SAME ~0.18/s, and
+    # coast after Stop is tiny (~0.016). So proportional/eased velocity can't slow
+    # it near center (it sails past). Instead use two discrete speed tiers +
+    # decisive stop: FAST when far (keeps up with a walking person), SLOW for the
+    # final approach, STOP inside the box (accurate, coast is negligible).
+    ptz_fast_speed: float = 0.8      # command for the FAST tier (~0.5/s)
+    ptz_slow_speed: float = 0.25     # command for the SLOW tier (~0.18/s)
+    ptz_far_error: float = 0.4       # |error| above this uses FAST, else SLOW
     # Wider hold band: start following only past a clear drift, and stop
     # adjusting well before dead center so it settles instead of hunting.
     ctrl_engage_error: float = 0.5   # start following once face is this far off-center

@@ -196,34 +196,30 @@ class TrackingWorker(threading.Thread):
         self._cal_t0 = None  # start a fresh window
 
     def _drive_ptz(self, status: ControlStatus) -> str:
-        """Smooth continuous-velocity control (ONVIF ContinuousMove).
+        """Two-tier bang-bang control for this camera's QUANTIZED velocity.
 
-        Velocity is proportional to the centering error (fast when far, easing to
-        a smooth stop near center), per-axis deadzone at release_error, capped at
-        max_speed, and low-pass eased so detection noise doesn't jerk the motor.
-        The camera keeps moving at the commanded velocity between updates (that's
-        what makes it smooth); we only resend when the velocity meaningfully
-        changes or to refresh before the ONVIF Timeout, and Stop once centered.
+        The Tapo's ContinuousMove velocity is not proportional (measured: cmds
+        0.05..0.30 all move at the same ~0.18/s), so easing/tapering the velocity
+        does nothing -- it can't slow near center and overshoots. Instead:
+          * far from center  -> FAST tier (keeps up with a walking person)
+          * near (but outside the stop box) -> SLOW tier (gentle final approach)
+          * inside the stop box -> STOP (coast is tiny ~0.016, so it's accurate)
+        No easing (the camera ignores magnitude); we just pick a tier per axis.
         """
         p = self.p
         now = time.time()
-        dt = 1.0 / max(1.0, p.inference_fps)
-
-        # Target velocity per axis. Proportional to how far the face is BEYOND
-        # the Stop-follow boundary, so the velocity tapers to 0 exactly at that
-        # boundary -- the camera decelerates to a smooth stop at the box edge
-        # instead of still moving fast when it gets there (which overshoots).
         rel = p.ctrl_release_error
 
-        def axis_vel(e: float, kp: float) -> float:
-            mag = abs(e) - rel
-            if mag <= 0.0:
+        def axis_cmd(e: float) -> float:
+            a = abs(e)
+            if a < rel:                       # inside the stop box -> hold
                 return 0.0
-            return math.copysign(min(p.ctrl_max_speed, kp * mag), e)
+            speed = p.ptz_fast_speed if a >= p.ptz_far_error else p.ptz_slow_speed
+            return math.copysign(speed, e)
 
         if status.engaged:
-            tx = axis_vel(status.ex, p.kp_pan)
-            ty = axis_vel(-status.ey, p.kp_tilt)  # ey>0 (below) -> look down
+            tx = axis_cmd(status.ex)
+            ty = axis_cmd(-status.ey)         # ey>0 (below) -> look down
         else:
             tx = ty = 0.0
         if p.invert_pan:
@@ -231,32 +227,24 @@ class TrackingWorker(threading.Thread):
         if p.invert_tilt:
             ty = -ty
 
-        # Ease the commanded velocity toward the target: smooth ACCEL, but faster
-        # DECEL so it doesn't coast past center from easing lag.
-        accel = _clamp(dt / max(1e-3, p.ctrl_smooth_time + dt), 0.0, 1.0)
-        ax = min(1.0, 2.5 * accel) if abs(tx) < abs(self._cmd_vx) else accel
-        ay = min(1.0, 2.5 * accel) if abs(ty) < abs(self._cmd_vy) else accel
-        self._cmd_vx += ax * (tx - self._cmd_vx)
-        self._cmd_vy += ay * (ty - self._cmd_vy)
-        status.pan_vel, status.tilt_vel = self._cmd_vx, self._cmd_vy
+        self._cmd_vx, self._cmd_vy = tx, ty
+        status.pan_vel, status.tilt_vel = tx, ty
 
-        # Stop once the eased velocity is essentially zero.
-        if abs(self._cmd_vx) < 0.015 and abs(self._cmd_vy) < 0.015:
-            self._cmd_vx = self._cmd_vy = 0.0
-            self.ptz_worker.send_stop()
-            self._sent_vx = self._sent_vy = 0.0
-            return "STOP (centered / not engaged)"
+        # Inside the box / not engaged -> stop (once, on the moving->stopped edge).
+        if tx == 0.0 and ty == 0.0:
+            if self._sent_vx != 0.0 or self._sent_vy != 0.0:
+                self.ptz_worker.send_stop()
+                self._sent_vx = self._sent_vy = 0.0
+            return "STOP (in box / not engaged)"
 
-        # Resend only when the velocity changed enough, or to refresh before the
-        # Timeout expires -- keeps the motion continuous without flooding ONVIF.
-        changed = (abs(self._cmd_vx - self._sent_vx) > 0.02
-                   or abs(self._cmd_vy - self._sent_vy) > 0.02)
+        # Resend when the tier changed or to refresh before the ONVIF Timeout.
+        changed = (abs(tx - self._sent_vx) > 0.05 or abs(ty - self._sent_vy) > 0.05)
         stale = now - self._last_sent_t > max(0.5, p.ptz_timeout - 0.3)
         if changed or stale:
-            self.ptz_worker.send_move(self._cmd_vx, self._cmd_vy, p.ptz_timeout)
-            self._sent_vx, self._sent_vy = self._cmd_vx, self._cmd_vy
+            self.ptz_worker.send_move(tx, ty, p.ptz_timeout)
+            self._sent_vx, self._sent_vy = tx, ty
             self._last_sent_t = now
-        return f"MOVE vx={self._cmd_vx:+.2f} vy={self._cmd_vy:+.2f}"
+        return f"MOVE vx={tx:+.2f} vy={ty:+.2f} tier"
 
     def run(self) -> None:
         _log.info(f"worker started (detector={self.detector.mode}, "
